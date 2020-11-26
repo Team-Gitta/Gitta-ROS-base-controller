@@ -1,6 +1,8 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "geometry_msgs/Twist.h"
+#include "wiringPi.h"
+#include "wiringSerial.h"
 
 const double RADIUS_WHEEL = 0.0485;
 const double L_X = 0.109; //half of the distance between front wheel and rear wheel
@@ -45,6 +47,78 @@ public:
 };
 
 
+
+bool absoluteEqual(double a, double b)
+{
+	return fabs(a-b) <= 1e-8 * (fabs(a)>fabs(b)? fabs(a) : fabs(b));
+}
+void transmitUartVelocity(double vw1, double vw2, double vw3, double vw4)
+{
+	union {
+		double v;
+		uint8_t bytes[8];
+	} v;
+
+	int serial_port;
+	if((serial_port = serialOpen("/dev/ttyAMA0", 115200)) < 0)
+	{
+		ROS_ERROR_STREAM("Unable to start serial device");
+	}
+	if(wiringPiSetup()==-1)
+	{
+		ROS_ERROR_STREAM("Unable to start wiringPi");
+	}
+
+	//vw1
+	unsigned char* c = (unsigned char*)&vw1;
+	for(int i=0; i<8; i++)
+	{
+		serialPutchar(serial_port, c[i]);
+		v.bytes[i] = serialGetchar(serial_port);
+	}
+	if(!absoluteEqual(vw1, v.v))
+	{
+		ROS_ERROR_STREAM("vw1 was distorted"<<vw1<<v.v);
+	}
+
+	//vw2
+	c = (unsigned char*)&vw2;
+	for(int i=0; i<8; i++)
+	{
+		serialPutchar(serial_port, c[i]);
+		v.bytes[i] = serialGetchar(serial_port);
+	}
+	if(!absoluteEqual(vw2, v.v))
+	{
+		ROS_ERROR_STREAM("vw2 was distorted"<<vw2<<v.v);
+	}
+
+	//vw3
+	c = (unsigned char*)&vw3;
+	for(int i=0; i<8; i++)
+	{
+		serialPutchar(serial_port, c[i]);
+		v.bytes[i] = serialGetchar(serial_port);
+	}
+	if(!absoluteEqual(vw3, v.v))
+	{
+		ROS_ERROR_STREAM("vw3 was distorted"<<vw3<<v.v);
+	}
+
+	//vw4
+	c = (unsigned char*)&vw4;
+	for(int i=0; i<8; i++)
+	{
+		serialPutchar(serial_port, c[i]);
+		v.bytes[i] = serialGetchar(serial_port);
+	}
+	if(!absoluteEqual(vw4, v.v))
+	{
+		ROS_ERROR_STREAM("vw4 was distorted"<<vw4<<v.v);
+	}
+	ROS_INFO_STREAM("Velocity was trasmitted to robot");
+}
+
 void velCallback(const geometry_msgs::Twist& msg)
 {
 	ROS_INFO_STREAM("Subscribed velocity Vx:"<<msg.linear.x<<" Vy:"<<msg.linear.y<<" angular:"<<msg.angular.z);
@@ -53,6 +127,7 @@ void velCallback(const geometry_msgs::Twist& msg)
 	double wheels[4];
 	transform.transformToWheels(base, wheels);
 	ROS_INFO_STREAM("W1:"<<wheels[0]<<" W2:"<<wheels[1]<<" W3:"<<wheels[2]<<" W4:"<<wheels[3]);
+	transmitUartVelocity(wheels[0], wheels[1], wheels[2], wheels[3]);
 }
 
 
